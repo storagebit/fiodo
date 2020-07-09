@@ -197,7 +197,7 @@ function run
     echo -e "   IOPS test process count:                $IOPS_JOB_COUNT"
     echo -e "   IOPS test IO depth:                     $IOPS_IO_DEPTH"
     echo -e "   IOPS test data set composition:         $((IOPS_FILE_COUNT * IOPS_JOB_COUNT))x $IOPS_FILE_SIZE files" 
-
+    echo -e printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
 
     #Create the Fio working directory
     mkdir -p $FIO_WORK_DIR
