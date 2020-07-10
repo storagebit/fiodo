@@ -29,22 +29,12 @@ if [ "$EUID" -ne 0 ]
 fi
 
 #Defining and seting up the default runtime parameters
-#Used to hold the path to the fio executable if it cannot be found in $PATH
-FIO_PATH=()
-
-#Defining and seting up the default runtime parameters
 #Define the Fio working directory
 FIO_WORK_DIR=()
 
 #Define IO engine - run "fio --enghelp" to list available ioengines on the client
 #the default is set to "libaio"
 FIO_IOENGINE=libaio
-
-#Output log files locations - DO NOT CHANGE!
-OUT_LAYOUT=$OUT_BASE.bw_read_results-$BENCHMARK_TIME.txt
-OUT_BW_READ=$OUT_BASE.bw_read_results-$BENCHMARK_TIME.txt
-OUT_BW_WRITE=$OUT_BASE.bw_write_results-$BENCHMARK_TIME.txt
-OUT_IOPS=$OUT_BASE.iops_results-$BENCHMARK_TIME.txt
 
 #Define Fio transfer/IO block file sizes
 #Baseline default is 16m for throughput and 4k for IOPS testing
@@ -83,7 +73,7 @@ function usage
     echo -e "                  [--bw-io-size <size>] [--bw-file-size <size>] [--bw-jobs <job count>]";
     echo -e "                  [--bw-io-depth <io depth>] [--iops-io-size <size>] [--iops-file-size <size>]";
     echo -e "                  [--iops-jobs <job count>] [--iops-io-depth <io depth>]";
-    echo -e "                  [--result-output <path>] [--help]";
+    echo -e "                  [--result-output <path>] [--cleanup yes|1|true] [--help]";
     echo -e "\nRequired arguments:";
     echo -e "  --fio-workdir       : Path to the folder fio will use to run the tests in."
     echo -e "\nOptional arguents:"
@@ -101,8 +91,8 @@ function usage
     echo -e "  --iops-io-size      : IO/transfer size for IOPS testing. Default is 4k.";
     echo -e "  --iops-job-count    : # of IOPS test processes per client running in parallel. Default is 128.";
     echo -e "  --iops-io-depth     : IO depth used for the IOPS tests. Default is 256.";
-    echo -e "  --result-output     : Path where the tests results are stored. Default is in the fio working dir.";
-    echo -e "  --cleanup           : Cleanup and delete the test file sets after test run";
+    echo -e "  --result-output     : Path where the tests results are stored. Default is the uers home directory.";
+    echo -e "  --cleanup           : Cleanup and delete all Fio test file sets after test run";
     echo -e "  --help              : This output.";
 }
 
@@ -111,7 +101,8 @@ function parse_arguments
   # Parsing the arguments
   while [ "$1" != "" ]; do
       case "$1" in
-          --fio-workdir )     FIO_WORK_DIR="$2";        shift;;
+          --cleanup )         CLEAN_UP="true";          shift;;
+	      --fio-workdir )     FIO_WORK_DIR="$2";        shift;;
           --fio-ioengine )    FIO_IOENGINE="$2";        shift;;
           --fio-ioengine )    FIO_PATH="$2";            shift;;
           --runtime )         RUNTIME="$2";             shift;;
@@ -119,16 +110,16 @@ function parse_arguments
           --bw-file-size )    BW_FILE_SIZE="$2";        shift;;
           --bw-file-count )   BW_FILE_COUNT="$2";       shift;;
           --bw-job-count )    BW_JOB_COUNT="$2";        shift;;
-          --bw-io-depth )     BW_IO_DEPTH"$2";          shift;;
+          --bw-io-depth )     BW_IO_DEPTH="$2";         shift;;
           --bw-io-size )      BW_IO_SIZE="$2";          shift;;
           --iops-file-size )  IOPS_FILE_SIZE="$2";      shift;;
           --iops-file-count ) IOPS_FILE_COUNT="$2";     shift;;
           --iops-job-count )  IOPS_JOB_COUNT="$2";      shift;;
-          --iops-io-depth )   IOPS_IO_DEPTH"$2";        shift;;
+          --iops-io-depth )   IOPS_IO_DEPTH="$2";       shift;;
           --iops-io-size )    IOPS_IO_SIZE="$2";        shift;;
           --result-output )   OUT_BASE="$2";            shift;;
-          --cleanup )         CLEAN_UP=1;               shift;;
-          -h | --help )       usage;                    exit;; # quit and show usage
+          -h | --help )       usage;                    exit 0;; # exit and show usage
+	    -* | --*)           echo -e "[$(date "+%H:%M:%S")]  Unsupported option/argument $1" >&2; usage; exit 1;; # exit and show usage
       esac
       shift # move to next argument to parse
   done
@@ -160,7 +151,7 @@ function check_fio_executable
 
 }
 
-function run 
+function run
 {
     parse_arguments "$@"
 
@@ -168,20 +159,28 @@ function run
 
     FIO_WORK_DIR=$FIO_WORK_DIR/$HOSTNAME
 
-    #Path the results output files - default location is the fio working directory
-
-    OUT_BASE=$FIO_WORK_DIR/$HOSTNAME
+    #Path the results output files - default location is the users home directory
+    OUT_BASE=$HOME/fiodo_results_$HOSTNAME
+    mkdir -p $OUT_BASE
 
     BENCHMARK_TIME=$(date "+%Y.%m.%d-%H.%M.%S")
+
+    #Output log files locations - DO NOT CHANGE!
+    OUT_BW_LAYOUT=$OUT_BASE/bw_layout_$BENCHMARK_TIME.txt
+    OUT_IOPS_LAYOUT=$OUT_BASE/iops_layout_$BENCHMARK_TIME.txt
+    OUT_BW_READ=$OUT_BASE/bw_read_result_$BENCHMARK_TIME.txt
+    OUT_BW_WRITE=$OUT_BASE/bw_write_result_$BENCHMARK_TIME.txt
+    OUT_IOPS=$OUT_BASE/iops_result_$BENCHMARK_TIME.txt
+
     printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
-    
+
     #Print the testing parameters
     echo -e "[$(date "+%H:%M:%S")] Started benchmark run with PID $BASHPID."
-    echo -e "[$(date "+%H:%M:%S")] Benchmark runtime environemnt:"
+    echo -e "[$(date "+%H:%M:%S")] Benchmark runtime environment:"
     echo -e "   Hostname:                               $HOSTNAME"
     echo -e "   Fio executable:                         $FIO_PATH"
     echo -e "   Fio version:                            $($FIO_PATH --version)"
-    echo -e "   Runtime:                                $RUNTIME seconds" 
+    echo -e "   Runtime:                                $RUNTIME seconds"
     echo -e "   Ramptime:                               $RAMPTIME seconds"
     echo -e "   Working directory:                      $FIO_WORK_DIR"
     echo -e "   Results output directory:               $OUT_BASE"
@@ -190,21 +189,28 @@ function run
     echo -e "   Throughput test file count per process: $BW_FILE_COUNT"
     echo -e "   Throughput test process count:          $BW_JOB_COUNT"
     echo -e "   Throughput test IO depth:               $BW_IO_DEPTH"
-    echo -e "   Throughput test data set composition:   $((BW_FILE_COUNT * IOPS_JOB_COUNT))x $BW_FILE_SIZE files" 
+    echo -e "   Throughput test data set composition:   $((BW_FILE_COUNT * IOPS_JOB_COUNT))x $BW_FILE_SIZE files"
     echo -e "   IOPS test IO/transfer size:             $IOPS_IO_SIZE"
     echo -e "   IOPS test file size:                    $IOPS_FILE_SIZE"
     echo -e "   IOPS test file count per process:       $IOPS_FILE_COUNT"
     echo -e "   IOPS test process count:                $IOPS_JOB_COUNT"
     echo -e "   IOPS test IO depth:                     $IOPS_IO_DEPTH"
-    echo -e "   IOPS test data set composition:         $((IOPS_FILE_COUNT * IOPS_JOB_COUNT))x $IOPS_FILE_SIZE files" 
-    echo -e printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
+    echo -e "   IOPS test data set composition:         $((IOPS_FILE_COUNT * IOPS_JOB_COUNT))x $IOPS_FILE_SIZE files"
+
+    if [[ $CLEAN_UP ]]; then
+	  echo -e "   Cleanup/deleting test file sets:        Yes"
+    else
+	  echo -e "   Cleanup/deleting test file sets:        No"
+    fi
+
+    printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
 
     #Create the Fio working directory
     mkdir -p $FIO_WORK_DIR
 
     #Create/Layout the file set used by fio for bandwidth test
     echo -e "[$(date "+%H:%M:%S")] Verifying/laying out the throughput test file set. This might take a while. Please wait..."
-    $FIO_PATH --create_only=1 --fallocate=none --ioengine=$FIO_IOENGINE --iodepth=$BW_IO_DEPTH --create_serialize=0 --direct=1 --bs=16m --size=$BW_FILE_SIZE --nr_files=$BW_FILE_COUNT --rw=read --numjobs=$BW_JOB_COUNT --name=bw_test --directory=$FIO_WORK_DIR --kb_base=1000 > $OUT_LAYOUT 2>&1
+    $FIO_PATH --create_only=1 --fallocate=none --ioengine=$FIO_IOENGINE --iodepth=$BW_IO_DEPTH --create_serialize=0 --direct=1 --bs=16m --size=$BW_FILE_SIZE --nr_files=$BW_FILE_COUNT --rw=read --numjobs=$BW_JOB_COUNT --name=bw_test --directory=$FIO_WORK_DIR --kb_base=1000 > $OUT_BW_LAYOUT 2>&1
 
     #Clean/drop client caches and buffers
     echo -e "[$(date "+%H:%M:%S")] Cleaning/dropping client cache and buffers..."
@@ -236,7 +242,7 @@ function run
 
     #Create/Layout the files used by fio for IOPS test
     echo -e "[$(date "+%H:%M:%S")] Verifying/laying out the IOPS test file set. This might take a while. Please wait..."
-    $FIO_PATH --create_only=1 --fallocate=none --ioengine=$FIO_IOENGINE --iodepth=$IOPS_IO_DEPTH --create_serialize=0 --direct=1 --bs=$BW_IO_SIZE --size=$IOPS_FILE_SIZE --nr_files=$IOPS_FILE_COUNT --rw=read --numjobs=$IOPS_JOB_COUNT --name=iops_test --directory=$FIO_WORK_DIR --kb_base=1000 > $OUT_LAYOUT 2>&1
+    $FIO_PATH --create_only=1 --fallocate=none --ioengine=$FIO_IOENGINE --iodepth=16 --create_serialize=0 --direct=1 --bs=16m --size=$IOPS_FILE_SIZE --nr_files=$IOPS_FILE_COUNT --rw=read --numjobs=$IOPS_JOB_COUNT --name=iops_test --directory=$FIO_WORK_DIR --kb_base=1000 > $OUT_IOPS_LAYOUT 2>&1
 
     #Clean/drop client caches and buffers
     echo -e "[$(date "+%H:%M:%S")] Cleaning/dropping client cache and buffers..."
@@ -245,9 +251,9 @@ function run
     #Fio Test IOPS
     echo -e "[$(date "+%H:%M:%S")] Started IOPS test. Runtime will be $RUNTIME seconds. Please wait..."
     $FIO_PATH --ramp_time=$RAMPTIME --exitall --time_based --ioengine=$FIO_IOENGINE --rw=randread --iodepth=$IOPS_IO_DEPTH --blocksize=$IOPS_IO_SIZE --direct=1 --size=$IOPS_FILE_SIZE --nr_files=$IOPS_FILE_COUNT --runtime=$RUNTIME --name=iops_test --numjobs=$IOPS_JOB_COUNT --group_reporting=1 --directory=$FIO_WORK_DIR --create_serialize=0 --disable_lat=1 --disable_clat=1 --disable_slat=1 --disable_bw=1 --kb_base=1000 > $OUT_IOPS 2>&1
-    IOPS=$(grep -oP "IOPS=[0-9]*[\S*][^,]" $OUT_IOPS | cut -d '=' -f 2)
+    IOPS=$(grep -oP "IOPS=[A-Za-z0-9.]*" $OUT_IOPS | cut -d '=' -f 2)
     echo -e "[$(date "+%H:%M:%S")] Test finished. IOPS:" $IOPS
-    
+
     if [[ $CLEAN_UP ]]; then
         echo -e "[$(date "+%H:%M:%S")] Cleaning up and deleting the test file set."
         rm -f $FIO_WORK_DIR/iops_test*
@@ -256,9 +262,10 @@ function run
 
     #Print the result summary
     printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
-    echo -e "[$(date "+%H:%M:%S")] Result Summary"
+    echo -e "[$(date "+%H:%M:%S")] Result Summary for test run with the time stamp: $BENCHMARK_TIME"
     echo -e "   Read Throughput: " $READ_BW
     echo -e "   Write Throughput:" $WRITE_BW
     echo -e "   IOPS:            " $IOPS
+    printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
 }
 run "$@";
