@@ -28,9 +28,8 @@ if [ "$EUID" -ne 0 ]
   exit 1
 fi
 
-#Defining and seting up the default runtime parameters
-#Define the Fio working directory
-FIO_WORK_DIR=()
+FIO_PATH=
+FIO_WORK_DIR=
 
 #Define IO engine - run "fio --enghelp" to list available ioengines on the client
 #the default is set to "libaio"
@@ -77,7 +76,6 @@ function usage
     echo -e "\nRequired arguments:";
     echo -e "  --fio-workdir       : Path to the folder fio will use to run the tests in."
     echo -e "\nOptional arguents:"
-    echo -e "  --fio-path          : Path to the Fio executable if the location is not in \$PATH."
     echo -e "  --fio-ioengine      : Fio io-engine to be used. Run 'fio -enghelp' to see available options."
     echo -e "  --runtime           : Runtime in seconds. Default is 60.";
     echo -e "  --ramptime          : Ramp up time in seconds. Default 0.";
@@ -102,9 +100,8 @@ function parse_arguments
   while [ "$1" != "" ]; do
       case "$1" in
           --cleanup )         CLEAN_UP="true";          shift;;
-	      --fio-workdir )     FIO_WORK_DIR="$2";        shift;;
+          --fio-workdir )     FIO_WORK_DIR="$2";        shift;;
           --fio-ioengine )    FIO_IOENGINE="$2";        shift;;
-          --fio-ioengine )    FIO_PATH="$2";            shift;;
           --runtime )         RUNTIME="$2";             shift;;
           --ramptime )        RAMPTIME="$2";            shift;;
           --bw-file-size )    BW_FILE_SIZE="$2";        shift;;
@@ -119,7 +116,7 @@ function parse_arguments
           --iops-io-size )    IOPS_IO_SIZE="$2";        shift;;
           --result-output )   OUT_BASE="$2";            shift;;
           -h | --help )       usage;                    exit 0;; # exit and show usage
-	    -* | --*)           echo -e "[$(date "+%H:%M:%S")]  Unsupported option/argument $1" >&2; usage; exit 1;; # exit and show usage
+          -* | --*)           echo -e "[$(date "+%H:%M:%S")]  Unsupported option/argument $1" >&2; usage; exit 1;; # exit and show usage
       esac
       shift # move to next argument to parse
   done
@@ -131,39 +128,17 @@ function parse_arguments
   fi
 }
 
-function check_fio_executable
-{
-    if [[ -z "$FIO_PATH" ]]; then
-        FIO_PATH=$(which fio)
-    fi
-
-    if [[ -z "$FIO_PATH" ]]; then
-        echo -e "[$(date "+%H:%M:%S")] Cannot find the fio executable, use --fio-path to point to the executable!"
-        echo -e "[$(date "+%H:%M:%S")] Goodbye."
-        exit 1
-    fi
-
-    if [[! command -v $FIO_PATH &> /dev/null ]]; then
-        echo -e "[$(date "+%H:%M:%S")] Cannot execute $FIO_PATH !"
-        echo -e "[$(date "+%H:%M:%S")] Goodbye."
-        exit 1
-    fi
-
-}
-
 function run
 {
     parse_arguments "$@"
 
-    check_fio_executable
+    BENCHMARK_TIME=$(date "+%Y.%m.%d-%H.%M.%S")
 
+    OUT_BASE=$FIO_WORK_DIR/fio_results/$BENCHMARK_TIME/$HOSTNAME
     FIO_WORK_DIR=$FIO_WORK_DIR/$HOSTNAME
 
-    #Path the results output files - default location is the users home directory
-    OUT_BASE=$HOME/fiodo_results_$HOSTNAME
+    mkdir -p $FIO_WORK_DIR
     mkdir -p $OUT_BASE
-
-    BENCHMARK_TIME=$(date "+%Y.%m.%d-%H.%M.%S")
 
     #Output log files locations - DO NOT CHANGE!
     OUT_BW_LAYOUT=$OUT_BASE/bw_layout_$BENCHMARK_TIME.txt
