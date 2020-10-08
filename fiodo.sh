@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#Copyright (c) 2020 Storagebit.CH
+#Copyright (c) 2020 StorageBIT.ch
 #
 #Permission is hereby granted, free of charge, to any person obtaining a copy
 #of this software and associated documentation files (the "Software"), to deal
@@ -28,7 +28,6 @@ if [ "$EUID" -ne 0 ]
   exit 1
 fi
 
-FIO_PATH=
 FIO_WORK_DIR=
 
 #Define IO engine - run "fio --enghelp" to list available ioengines on the client
@@ -76,7 +75,7 @@ function usage
     echo -e "\nRequired arguments:";
     echo -e "  --fio-workdir       : Path to the folder fio will use to run the tests in."
     echo -e "\nOptional arguents:"
-    echo -e "  --fio-ioengine      : Fio io-engine to be used. Run 'fio -enghelp' to see available options."
+    echo -e "  --fio-ioengine      : Fio io-engine to be used. Run 'fio -enghelp' to see available options. Default is libaio."
     echo -e "  --runtime           : Runtime in seconds. Default is 60.";
     echo -e "  --ramptime          : Ramp up time in seconds. Default 0.";
     echo -e "  --bw-file-size      : File size for throughput testing. Default is 10g."
@@ -134,11 +133,13 @@ function run
 
     BENCHMARK_TIME=$(date "+%Y.%m.%d-%H.%M.%S")
 
-    OUT_BASE=$FIO_WORK_DIR/fio_results/$BENCHMARK_TIME/$HOSTNAME
+    OUT_BASE=$HOME/fiodo_results/$BENCHMARK_TIME/$HOSTNAME
     FIO_WORK_DIR=$FIO_WORK_DIR/$HOSTNAME
 
     mkdir -p $FIO_WORK_DIR
     mkdir -p $OUT_BASE
+
+    FIO_PATH=`which fio`
 
     #Output log files locations - DO NOT CHANGE!
     OUT_BW_LAYOUT=$OUT_BASE/bw_layout_$BENCHMARK_TIME.txt
@@ -164,7 +165,7 @@ function run
     echo -e "   Throughput test file count per process: $BW_FILE_COUNT"
     echo -e "   Throughput test process count:          $BW_JOB_COUNT"
     echo -e "   Throughput test IO depth:               $BW_IO_DEPTH"
-    echo -e "   Throughput test data set composition:   $((BW_FILE_COUNT * IOPS_JOB_COUNT))x $BW_FILE_SIZE files"
+    echo -e "   Throughput test data set composition:   $((BW_FILE_COUNT * BW_JOB_COUNT))x $BW_FILE_SIZE files"
     echo -e "   IOPS test IO/transfer size:             $IOPS_IO_SIZE"
     echo -e "   IOPS test file size:                    $IOPS_FILE_SIZE"
     echo -e "   IOPS test file count per process:       $IOPS_FILE_COUNT"
