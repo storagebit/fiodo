@@ -14,7 +14,7 @@ in a sub-folder of the users home directory by default.
 ## How to run it
 Requires root or sudo at least.
 
-Quite easy. `chmod +x fiodo.sh` and then: `$ sudo ./fiodo.sh <path to fio work directory>`
+Quite easy. `chmod +x fiodo.sh` and then: `$ sudo ./fiodo.sh --fio-workdir <path to fio work directory to be tested>`
 
 Details as below:
 ```
